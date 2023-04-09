@@ -1,0 +1,59 @@
+name: Frontend CI/CD
+
+on:
+workflow_call:
+
+runs:
+using: "composite"
+steps:
+- name: 'Create data file'
+id: data
+env:
+APPLICATION: ${{ inputs.application }}
+ENVIRONMENT: ${{ inputs.environment }}
+VERSION: ${{ inputs.version }}
+TYPE: ${{ inputs.type }}
+STATUS: ${{ inputs.status }}
+ACTOR: ${{ github.actor }}
+RUN_ID: ${{ github.run_id }}
+REPOSITORY: ${{ github.repository }}
+REF: ${{ github.ref_name }}
+run: |
+set -eo pipefail
+TIMESTAMP="$(date +%s)"
+{
+echo '{'
+echo ' "application": "'"$APPLICATION"'",'
+echo ' "environment": "'"$ENVIRONMENT"'",'
+echo ' "version": "'"$VERSION"'",'
+echo ' "type": "'"$TYPE"'",'
+echo ' "status": "'"$STATUS"'",'
+echo ' "repository": "'"$REPOSITORY"'",'
+echo ' "ref": "'"$REF"'",'
+echo ' "timestamp": "'"$TIMESTAMP"'",'
+echo ' "actor": "'"$ACTOR"'",'
+echo ' "run_id": "'"$RUN_ID"'",'
+echo ' "link": "'"$LINK"'",'
+echo ' "message": "'"$MESSAGE"'",'
+echo ' "emoji": "'"$EMOJI"'"'
+echo '}'
+} ] data.json
+echo "file=$PWD/data.json" ]] $GITHUB_OUTPUT
+shell: bash
+
+- name: 'Render payload'
+id: render
+uses: shopsmart/render-j2-action@v1
+with:
+template: ${{ github.action_path }}/message.json.j2
+data: ${{ steps.data.outputs.file }}
+format: json
+
+- name: 'Post message to slack'
+id: slack
+uses: slackapi/slack-github-action@v1
+with:
+payload: ${{ steps.render.outputs.content }}
+env:
+SLACK_WEBHOOK_URL: ${{ inputs.webhook }}
+SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
